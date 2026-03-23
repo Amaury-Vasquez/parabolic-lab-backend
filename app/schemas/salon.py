@@ -15,3 +15,12 @@ class SalonRead(BaseModel):
     activo: bool | None = None
 
     model_config = {"from_attributes": True}
+
+
+class SalonWithDetails(BaseModel):
+    idsalon: UUID
+    nombresalon: str
+    codigoacceso: str
+    activo: bool | None = None
+    escenarios: list[str] = []
+    num_estudiantes: int = 0

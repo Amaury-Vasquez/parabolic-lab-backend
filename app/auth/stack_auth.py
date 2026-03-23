@@ -85,6 +85,23 @@ async def update_stack_user(user_id: str, data: dict) -> dict:
     return response.json()
 
 
+async def refresh_session(refresh_token: str) -> dict:
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{STACK_AUTH_BASE}/auth/sessions/current/refresh",
+            headers={
+                **_server_headers,
+                "x-stack-refresh-token": refresh_token,
+            },
+        )
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No se pudo renovar la sesión",
+        )
+    return response.json()
+
+
 async def delete_stack_user(user_id: str) -> None:
     async with httpx.AsyncClient() as client:
         response = await client.request(

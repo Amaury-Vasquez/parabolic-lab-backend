@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import ForeignKey, Index, String, func
+from sqlalchemy import Computed, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,7 +18,9 @@ class Alumno(Base):
         UUID(as_uuid=True), ForeignKey("usuario.idusuario"), unique=True, nullable=False
     )
     matricula: Mapped[str] = mapped_column(String, nullable=False)
-    idinstitucion: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    idinstitucion: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), Computed("get_institucion_from_usuario(idusuario)")
+    )
 
     usuario: Mapped["Usuario"] = relationship(back_populates="alumno")  # noqa: F821
     salones: Mapped[list["AlumnoEnSalon"]] = relationship(back_populates="alumno")  # noqa: F821

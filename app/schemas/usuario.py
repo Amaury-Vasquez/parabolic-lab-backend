@@ -8,6 +8,7 @@ class UsuarioRead(BaseModel):
     idusuario: UUID
     authid: str
     email: str
+    nombre: str
     idinstitucion: UUID
     apellidopaterno: str
     apellidomaterno: str | None = None

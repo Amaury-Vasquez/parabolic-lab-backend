@@ -27,6 +27,7 @@ class Usuario(Base):
     # because that table is auto-managed by Neon Auth in a separate schema
     authid: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String, nullable=False)
+    nombre: Mapped[str] = mapped_column(String, nullable=False)
     idinstitucion: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("institucion.idinstitucion", onupdate="CASCADE", ondelete="RESTRICT"),
@@ -39,6 +40,7 @@ class Usuario(Base):
     ultimoacceso: Mapped[datetime | None] = mapped_column(DateTime)
     activo: Mapped[bool | None] = mapped_column(Boolean, server_default="true")
     tipousuario: Mapped[str] = mapped_column(String, nullable=False)
+    temapreferido: Mapped[str | None] = mapped_column(String, server_default="winter")
 
     institucion: Mapped["Institucion"] = relationship(back_populates="usuarios")  # noqa: F821
     alumno: Mapped["Alumno | None"] = relationship(back_populates="usuario", uselist=False)  # noqa: F821

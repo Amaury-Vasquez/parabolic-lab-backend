@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +19,7 @@ from app.schemas.auth import (
     RegisterRequest,
     UpdateProfileRequest,
     UserProfile,
+    VerifyResponse,
 )
 
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
@@ -32,7 +33,10 @@ async def _sync_user_to_neon_auth(db: AsyncSession, auth_id: str) -> None:
     """
     user_data = await stack_auth.get_stack_user(auth_id)
     await db.execute(
-        text("INSERT INTO neon_auth.users_sync (raw_json) VALUES (:raw_json)"),
+        text(
+            "INSERT INTO neon_auth.users_sync (raw_json) VALUES (:raw_json) "
+            "ON CONFLICT (id) DO UPDATE SET raw_json = EXCLUDED.raw_json"
+        ),
         {"raw_json": json.dumps(user_data)},
     )
 
@@ -67,6 +71,7 @@ async def register_institucion_admin(data: RegisterInstitucionAdmin, db: AsyncSe
         usuario = Usuario(
             authid=auth_id,
             email=data.email,
+            nombre=data.nombre,
             idinstitucion=institucion.idinstitucion,
             apellidopaterno=data.apellidopaterno,
             apellidomaterno=data.apellidomaterno,
@@ -121,6 +126,7 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
         usuario = Usuario(
             authid=auth_id,
             email=data.email,
+            nombre=data.nombre,
             idinstitucion=data.idinstitucion,
             apellidopaterno=data.apellidopaterno,
             apellidomaterno=data.apellidomaterno,
@@ -134,7 +140,6 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
             alumno = Alumno(
                 idusuario=usuario.idusuario,
                 matricula=data.matricula,
-                idinstitucion=data.idinstitucion,
             )
             db.add(alumno)
         elif data.tipousuario == "docente":
@@ -192,6 +197,26 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/verify", response_model=VerifyResponse)
+async def verify_token(
+    x_stack_access_token: str = Header(..., alias="x-stack-access-token"),
+    x_stack_refresh_token: str | None = Header(None, alias="x-stack-refresh-token"),
+):
+    """Verifica el token de acceso localmente (JWT decode, sin DB).
+
+    Si el token es invalido o expirado y se proporciona un refresh token,
+    intenta renovar la sesión con Stack Auth.
+    """
+    try:
+        stack_auth.verify_access_token(x_stack_access_token)
+        return VerifyResponse(valid=True)
+    except HTTPException:
+        if not x_stack_refresh_token:
+            raise
+        new_tokens = await stack_auth.refresh_session(x_stack_refresh_token)
+        return VerifyResponse(valid=True, access_token=new_tokens["access_token"])
+
+
 @router.get("/me", response_model=UserProfile)
 async def get_me(current_user: Usuario = Depends(get_current_user)):
     return current_user
@@ -214,6 +239,8 @@ async def update_me(
         await stack_auth.update_stack_user(current_user.authid, stack_update)
 
     # Actualizar campos locales
+    if data.nombre is not None:
+        current_user.nombre = data.nombre
     if data.apellidopaterno is not None:
         current_user.apellidopaterno = data.apellidopaterno
     if data.apellidomaterno is not None:
