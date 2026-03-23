@@ -11,6 +11,6 @@ primary_region = 'dfw'
   min_machines_running = 0
 
 [[vm]]
-  memory = '16gb'
+  memory = '2gb'
   cpu_kind = 'shared'
   cpus = 8
