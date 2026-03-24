@@ -1,7 +1,16 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class SalonCreate(BaseModel):
+    nombresalon: str = Field(..., min_length=1, max_length=100)
+
+
+class SalonUpdate(BaseModel):
+    nombresalon: str | None = Field(None, min_length=1, max_length=100)
+    activo: bool | None = None
 
 
 class SalonRead(BaseModel):
