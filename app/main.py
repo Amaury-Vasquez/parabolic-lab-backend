@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
-from app.config import settings
 from app.routes import (
     actividades_alumno,
     actividades_interactivas,
@@ -25,9 +24,15 @@ app = FastAPI(
     version="0.1.0",
 )
 
+CORS_ORIGINS = [
+    "http://localhost:3000",
+    "https://parabolic-lab-frontend.vercel.app",
+    "https://paraboliclab.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

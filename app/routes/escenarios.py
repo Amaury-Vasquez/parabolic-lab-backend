@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -22,9 +22,7 @@ def _require_docente(current_user: Usuario) -> None:
         )
 
 
-async def _verificar_salon_del_docente(
-    idsalon: UUID, docente_id: UUID, db: AsyncSession
-) -> Salon:
+async def _verificar_salon_del_docente(idsalon: UUID, docente_id: UUID, db: AsyncSession) -> Salon:
     """Verifica que el salón existe y pertenece al docente."""
     result = await db.execute(select(Salon).where(Salon.idsalon == idsalon))
     salon = result.scalar_one_or_none()
@@ -36,6 +34,23 @@ async def _verificar_salon_del_docente(
 
 
 # ── READ ──────────────────────────────────────────────────────────────────────
+@router.get("/me", response_model=list[EscenarioRead])
+async def mis_escenarios(
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Devuelve todos los escenarios de los salones del docente actual."""
+    _require_docente(current_user)
+
+    result = await db.execute(
+        select(Escenario)
+        .join(Salon, Salon.idsalon == Escenario.idsalon)
+        .where(Salon.iddocente == current_user.docente.iddocente)
+        .where(Escenario.activo.is_(True))
+        .order_by(Escenario.fechacreacion.desc())
+    )
+    return result.scalars().all()
+
 
 @router.get("/", response_model=list[EscenarioRead])
 async def listar_escenarios(
@@ -60,6 +75,7 @@ async def obtener_escenario(
 
 
 # ── WRITE ─────────────────────────────────────────────────────────────────────
+
 
 @router.post("/", response_model=EscenarioRead, status_code=status.HTTP_201_CREATED)
 async def crear_escenario(
@@ -109,7 +125,7 @@ async def actualizar_escenario(
     campos = data.model_dump(exclude_unset=True)
     for campo, valor in campos.items():
         setattr(escenario, campo, valor)
-    escenario.fechamodificacion = datetime.now(timezone.utc)
+    escenario.fechamodificacion = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(escenario)
@@ -133,5 +149,5 @@ async def eliminar_escenario(
     await _verificar_salon_del_docente(escenario.idsalon, current_user.docente.iddocente, db)
 
     escenario.activo = False
-    escenario.fechamodificacion = datetime.now(timezone.utc)
+    escenario.fechamodificacion = datetime.now(UTC)
     await db.commit()
