@@ -5,6 +5,10 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class AsignarEscenarioRequest(BaseModel):
+    idsalon: UUID
+
+
 class EscenarioCreate(BaseModel):
     idsalon: UUID
     nombre: str = Field(..., min_length=1, max_length=200)

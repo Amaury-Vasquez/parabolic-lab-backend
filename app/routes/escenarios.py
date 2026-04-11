@@ -9,7 +9,7 @@ from app.dependencies import get_current_user, get_db
 from app.models.escenario import Escenario
 from app.models.salon import Salon
 from app.models.usuario import Usuario
-from app.schemas.escenario import EscenarioCreate, EscenarioRead, EscenarioUpdate
+from app.schemas.escenario import AsignarEscenarioRequest, EscenarioCreate, EscenarioRead, EscenarioUpdate
 
 router = APIRouter(prefix="/escenarios", tags=["Escenarios"])
 
@@ -103,6 +103,47 @@ async def crear_escenario(
     await db.commit()
     await db.refresh(escenario)
     return escenario
+
+
+@router.post("/{idescenario}/asignar", response_model=EscenarioRead, status_code=status.HTTP_201_CREATED)
+async def asignar_escenario(
+    idescenario: UUID,
+    data: AsignarEscenarioRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Copia un escenario a otro salón. Solo el docente dueño de ambos salones."""
+    _require_docente(current_user)
+
+    # Obtener el escenario original
+    result = await db.execute(select(Escenario).where(Escenario.idescenario == idescenario))
+    escenario_original = result.scalar_one_or_none()
+    if not escenario_original:
+        raise HTTPException(status_code=404, detail="Escenario no encontrado")
+
+    # Verificar que el docente es dueño del salón actual del escenario
+    await _verificar_salon_del_docente(escenario_original.idsalon, current_user.docente.iddocente, db)
+
+    # Verificar que el docente es dueño del salón destino
+    await _verificar_salon_del_docente(data.idsalon, current_user.docente.iddocente, db)
+
+    # Crear una copia del escenario en el salón destino
+    nuevo_escenario = Escenario(
+        idsalon=data.idsalon,
+        nombre=escenario_original.nombre,
+        descripcion=escenario_original.descripcion,
+        niveldificultad=escenario_original.niveldificultad,
+        tipoescenario=escenario_original.tipoescenario,
+        objetivosaprendizaje=escenario_original.objetivosaprendizaje,
+        instrucciones=escenario_original.instrucciones,
+        tiempolimite=escenario_original.tiempolimite,
+        intentospermitidos=escenario_original.intentospermitidos,
+        configuracionescenario=escenario_original.configuracionescenario or {},
+    )
+    db.add(nuevo_escenario)
+    await db.commit()
+    await db.refresh(nuevo_escenario)
+    return nuevo_escenario
 
 
 @router.put("/{idescenario}", response_model=EscenarioRead)
