@@ -15,3 +15,13 @@ class ActividadAlumnoRead(BaseModel):
     completada: bool | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ActividadAlumnoCreate(BaseModel):
+    idactividad: UUID
+    idalumno: UUID
+
+
+class ActividadAlumnoUpdate(BaseModel):
+    puntuacionobtenida: Decimal | None = None
+    completada: bool | None = None
