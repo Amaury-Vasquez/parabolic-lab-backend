@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -33,3 +34,19 @@ class SalonWithDetails(BaseModel):
     activo: bool | None = None
     escenarios: list[str] = []
     num_estudiantes: int = 0
+
+
+class SalonProgresoAlumno(BaseModel):
+    """Estadísticas de progreso de un alumno en un salón."""
+    idalumno: UUID
+    nombre: str
+    apellidopaterno: str
+    apellidomaterno: str | None = None
+    total_interacciones: int
+    promedio_puntuacion: Decimal | None = None
+    mejor_puntuacion: Decimal | None = None
+    total_intentos: int
+    escenarios_completados: int
+    tiempo_total_minutos: float
+
+    model_config = {"from_attributes": True}

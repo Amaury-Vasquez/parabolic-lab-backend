@@ -1,18 +1,21 @@
 import random
 import string
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.functions import coalesce
 
 from app.dependencies import get_current_user, get_db
+from app.models.alumno import Alumno
 from app.models.alumno_en_salon import AlumnoEnSalon
+from app.models.interaccion_escenario import InteraccionEscenario
 from app.models.salon import Salon
 from app.models.usuario import Usuario
-from app.schemas.salon import SalonCreate, SalonRead, SalonUpdate, SalonWithDetails
+from app.schemas.salon import SalonCreate, SalonProgresoAlumno, SalonRead, SalonUpdate, SalonWithDetails
 
 router = APIRouter(prefix="/salones", tags=["Salones"])
 
@@ -31,6 +34,7 @@ def _require_docente(current_user: Usuario) -> None:
 
 
 # ── READ ──────────────────────────────────────────────────────────────────────
+
 
 @router.get("/me", response_model=list[SalonWithDetails])
 async def mis_salones(
@@ -107,6 +111,7 @@ async def obtener_salon(
 
 # ── WRITE ─────────────────────────────────────────────────────────────────────
 
+
 @router.post("/", response_model=SalonRead, status_code=status.HTTP_201_CREATED)
 async def crear_salon(
     data: SalonCreate,
@@ -161,7 +166,7 @@ async def actualizar_salon(
         salon.nombresalon = data.nombresalon
     if data.activo is not None:
         salon.activo = data.activo
-    salon.fechamodificacion = datetime.now(timezone.utc)
+    salon.fechamodificacion = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(salon)
@@ -185,5 +190,83 @@ async def eliminar_salon(
         raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este salon")
 
     salon.activo = False
-    salon.fechamodificacion = datetime.now(timezone.utc)
+    salon.fechamodificacion = datetime.now(UTC)
     await db.commit()
+
+
+@router.get("/{idsalon}/progreso", response_model=list[SalonProgresoAlumno])
+async def obtener_progreso_salon(
+    idsalon: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Obtiene el progreso de todos los alumnos en un salón.
+    Solo el docente dueño del salón puede acceder.
+    Retorna estadísticas agregadas de interacciones para cada alumno.
+    """
+    _require_docente(current_user)
+
+    # Verificar que el salon existe y que el usuario es el dueño
+    result = await db.execute(select(Salon).where(Salon.idsalon == idsalon))
+    salon = result.scalar_one_or_none()
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon no encontrado")
+    if salon.iddocente != current_user.docente.iddocente:
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver el progreso de este salon")
+
+    # Query para obtener estadísticas de alumnos con outer join para incluir alumnos sin interacciones
+    query = (
+        select(
+            Alumno.idalumno,
+            Usuario.nombre,
+            Usuario.apellidopaterno,
+            Usuario.apellidomaterno,
+            coalesce(func.count(InteraccionEscenario.idinteraccion), 0).label("total_interacciones"),
+            func.avg(InteraccionEscenario.puntuacion).label("promedio_puntuacion"),
+            func.max(InteraccionEscenario.puntuacion).label("mejor_puntuacion"),
+            coalesce(func.sum(InteraccionEscenario.intentosrealizados), 0).label("total_intentos"),
+            coalesce(
+                func.sum(
+                    case(
+                        (InteraccionEscenario.completado.is_(True), 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("escenarios_completados"),
+            coalesce(func.sum(InteraccionEscenario.tiempototal) / 60.0, 0.0).label("tiempo_total_minutos"),
+        )
+        .join(AlumnoEnSalon, Alumno.idalumno == AlumnoEnSalon.idalumno)
+        .join(Usuario, Alumno.idusuario == Usuario.idusuario)
+        .outerjoin(InteraccionEscenario, Alumno.idalumno == InteraccionEscenario.idalumno)
+        .where(AlumnoEnSalon.idsalon == idsalon)
+        .where(AlumnoEnSalon.activo.is_(True))
+        .group_by(
+            Alumno.idalumno,
+            Usuario.nombre,
+            Usuario.apellidopaterno,
+            Usuario.apellidomaterno,
+        )
+        .order_by(Usuario.nombre, Usuario.apellidopaterno)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Convertir rows a SalonProgresoAlumno objects
+    return [
+        SalonProgresoAlumno(
+            idalumno=row.idalumno,
+            nombre=row.nombre,
+            apellidopaterno=row.apellidopaterno,
+            apellidomaterno=row.apellidomaterno,
+            total_interacciones=row.total_interacciones,
+            promedio_puntuacion=row.promedio_puntuacion,
+            mejor_puntuacion=row.mejor_puntuacion,
+            total_intentos=row.total_intentos,
+            escenarios_completados=row.escenarios_completados,
+            tiempo_total_minutos=float(row.tiempo_total_minutos),
+        )
+        for row in rows
+    ]
