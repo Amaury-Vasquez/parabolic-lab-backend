@@ -165,7 +165,7 @@ async def _actualizar_escenario_impl(
     campos = data.model_dump(exclude_unset=True)
     for campo, valor in campos.items():
         setattr(escenario, campo, valor)
-    escenario.fechamodificacion = datetime.now(UTC)
+    escenario.fechamodificacion = datetime.now(UTC).replace(tzinfo=None)
 
     await db.commit()
     await db.refresh(escenario)
@@ -211,5 +211,5 @@ async def eliminar_escenario(
     await _verificar_salon_del_docente(escenario.idsalon, current_user.docente.iddocente, db)
 
     escenario.activo = False
-    escenario.fechamodificacion = datetime.now(UTC)
+    escenario.fechamodificacion = datetime.now(UTC).replace(tzinfo=None)
     await db.commit()
