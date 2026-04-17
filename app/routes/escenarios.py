@@ -146,14 +146,13 @@ async def asignar_escenario(
     return nuevo_escenario
 
 
-@router.put("/{idescenario}", response_model=EscenarioRead)
-async def actualizar_escenario(
+async def _actualizar_escenario_impl(
     idescenario: UUID,
     data: EscenarioUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    db: AsyncSession,
+    current_user: Usuario,
 ):
-    """Edita un escenario. Solo el docente dueño del salón al que pertenece."""
+    """Implementación compartida de actualización para PUT y PATCH."""
     _require_docente(current_user)
 
     result = await db.execute(select(Escenario).where(Escenario.idescenario == idescenario))
@@ -166,11 +165,33 @@ async def actualizar_escenario(
     campos = data.model_dump(exclude_unset=True)
     for campo, valor in campos.items():
         setattr(escenario, campo, valor)
-    escenario.fechamodificacion = datetime.now(UTC)
+    escenario.fechamodificacion = datetime.now(UTC).replace(tzinfo=None)
 
     await db.commit()
     await db.refresh(escenario)
     return escenario
+
+
+@router.put("/{idescenario}", response_model=EscenarioRead)
+async def actualizar_escenario_put(
+    idescenario: UUID,
+    data: EscenarioUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Edita un escenario (PUT). Solo el docente dueño del salón al que pertenece."""
+    return await _actualizar_escenario_impl(idescenario, data, db, current_user)
+
+
+@router.patch("/{idescenario}", response_model=EscenarioRead)
+async def actualizar_escenario_patch(
+    idescenario: UUID,
+    data: EscenarioUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Edita un escenario (PATCH). Solo el docente dueño del salón al que pertenece."""
+    return await _actualizar_escenario_impl(idescenario, data, db, current_user)
 
 
 @router.delete("/{idescenario}", status_code=status.HTTP_204_NO_CONTENT)
@@ -190,5 +211,5 @@ async def eliminar_escenario(
     await _verificar_salon_del_docente(escenario.idsalon, current_user.docente.iddocente, db)
 
     escenario.activo = False
-    escenario.fechamodificacion = datetime.now(UTC)
+    escenario.fechamodificacion = datetime.now(UTC).replace(tzinfo=None)
     await db.commit()
