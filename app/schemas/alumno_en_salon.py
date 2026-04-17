@@ -11,3 +11,7 @@ class AlumnoEnSalonRead(BaseModel):
     activo: bool | None = None
 
     model_config = {"from_attributes": True}
+
+
+class AlumnoEnSalonJoin(BaseModel):
+    codigoacceso: str

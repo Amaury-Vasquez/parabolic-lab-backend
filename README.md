@@ -1,6 +1,7 @@
 # Parabolic Lab Backend
 
 API backend for a Mexican college educational platform focused on projectile motion (tiro parabolico). Built with FastAPI, SQLAlchemy, and Neon PostgreSQL, using Stack Auth for authentication.
+# run uv run uvicorn app.main:app --reload
 
 ## Tech Stack
 

@@ -20,3 +20,16 @@ class InteraccionEscenarioRead(BaseModel):
     datosinteraccion: dict[str, Any] | None = None
 
     model_config = {"from_attributes": True}
+
+
+class InteraccionEscenarioCreate(BaseModel):
+    idescenario: UUID
+    idalumno: UUID
+
+
+class InteraccionEscenarioUpdate(BaseModel):
+    fechafin: datetime | None = None
+    tiempototal: int | None = None
+    puntuacion: Decimal | None = None
+    completado: bool | None = None
+    datosinteraccion: dict[str, Any] | None = None
