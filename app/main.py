@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 
 from app.routes import (
     actividades_alumno,
@@ -52,6 +53,32 @@ app.include_router(actividades_interactivas.router, prefix=API_PREFIX)
 app.include_router(actividades_alumno.router, prefix=API_PREFIX)
 app.include_router(interacciones_escenario.router, prefix=API_PREFIX)
 app.include_router(escenarios_en_actividad.router, prefix=API_PREFIX)
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    schema["components"]["securitySchemes"] = {
+        "StackAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "x-stack-access-token",
+        }
+    }
+    for path in schema["paths"].values():
+        for operation in path.values():
+            operation["security"] = [{"StackAuth": []}]
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = custom_openapi
 
 
 @app.get("/")
